@@ -65,18 +65,39 @@ android {
     }
 }
 
-group = "dev.kigya"
-version = "0.1.0-SNAPSHOT"
-
 publishing {
     publications {
-        withType<MavenPublication>().matching {
-            it.name == "kotlinMultiplatform"
-        }.all {
-            artifactId = "outcome"
+        withType<MavenPublication>().configureEach {
+            groupId = "dev.kigya.outcome"
+            artifactId = "core"
+            version = "0.1.3"
         }
     }
+
     repositories {
-        mavenLocal()
+        maven {
+            name = "GitHubPackages"
+            url = uri("https://maven.pkg.github.com/kigya/Outcome")
+            credentials {
+                username = findProperty("gpr.user") as String?
+                    ?: System.getenv("GITHUB_ACTOR")
+                password = findProperty("gpr.key") as String?
+                    ?: System.getenv("GPR_TOKEN")
+            }
+        }
+        // mavenLocal()
     }
+}
+
+tasks.register<Delete>("cleanMavenLocal") {
+    val groupIdPath = "dev/kigya"
+    val artifactId = "outcome"
+
+    delete(
+        file("${System.getProperty("user.home")}/.m2/repository/$groupIdPath/$artifactId")
+    )
+}
+
+tasks.named("publishToMavenLocal") {
+    dependsOn(tasks.named("cleanMavenLocal"))
 }
