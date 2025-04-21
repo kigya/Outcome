@@ -1,8 +1,17 @@
+@file:OptIn(ExperimentalContracts::class)
+
 package dev.kigya.outcome
 
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.TimeoutCancellationException
+import kotlinx.coroutines.async
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.withContext
+import kotlin.contracts.ExperimentalContracts
+import kotlin.contracts.InvocationKind
+import kotlin.contracts.contract
+import kotlin.coroutines.CoroutineContext
+import kotlin.coroutines.EmptyCoroutineContext
 import kotlin.coroutines.cancellation.CancellationException
 
 /**
@@ -71,9 +80,12 @@ public fun <Error, Value> Outcome<Error, Value>.errorOrNull(): Error? =
  */
 public inline fun <Error, Value> Outcome<Error, Value>.getOrElse(
     onFailure: (Error) -> Value,
-): Value = when (this) {
-    is Outcome.Success -> value
-    is Outcome.Failure -> onFailure(error)
+): Value {
+    contract { callsInPlace(onFailure, InvocationKind.AT_MOST_ONCE) }
+    return when (this) {
+        is Outcome.Success -> value
+        is Outcome.Failure -> onFailure(error)
+    }
 }
 
 /**
@@ -94,36 +106,88 @@ public fun <Error, Value> Outcome<Error, Value>.getOrDefault(
 // ─── Observers ──────────────────────────────────────────────────────────────
 
 /**
- * Invoke one of the handlers based on state, then return the original [Outcome].
+ * Executes the corresponding **side‑effect** lambda and returns the _same_ [Outcome] unchanged.
  *
+ * Use it when you want to _peek_ at the result (for logging, metrics, etc.) but keep
+ * piping the value through a fluent chain.
+ *
+ * ### Example
  * ```kotlin
- * sealed interface AppError { object BadRequest: AppError }
+ * sealed interface AuthError { object Network : AuthError; object Invalid : AuthError }
  *
- * // On Success
- * val r1 = Outcome.success<AppError, Int>(42)
- * r1.fold(
- *   onFailure = { println("Error: $it") },
- *   onSuccess = { println("Value: $it") }
- * ) // prints: Value: 42
+ * val outcome: Outcome<AuthError, String> = authenticateUser()
  *
- * // On Failure
- * val r2 = Outcome.failure<AppError, Int>(AppError.BadRequest)
- * r2.fold(
- *   onFailure = { println("Error: $it") },
- *   onSuccess = { println("Value: $it") }
- * ) // prints: Error: BadRequest
+ * outcome
+ *   .handle(
+ *     onFailure = { println("Fail → $it") },   // side‑effect only
+ *     onSuccess = { println("Token → $it") }
+ *   )
+ *   .mapSuccess { token -> token.take(4) }      // chain continues
+ *   // ...
  * ```
+ *
+ * @param onFailure action executed **only** if this is [Outcome.Failure].
+ * @param onSuccess action executed **only** if this is [Outcome.Success].
+ * @return the original [Outcome] instance to enable further chaining.
  */
-public inline fun <Error, Value> Outcome<Error, Value>.fold(
+public inline fun <Error, Value> Outcome<Error, Value>.handle(
     onFailure: (Error) -> Unit = {},
     onSuccess: (Value) -> Unit = {},
-): Outcome<Error, Value> = when (this) {
-    is Outcome.Success -> {
-        onSuccess(value); this
+): Outcome<Error, Value> {
+    contract {
+        callsInPlace(onFailure, InvocationKind.AT_MOST_ONCE)
+        callsInPlace(onSuccess, InvocationKind.AT_MOST_ONCE)
     }
+    return when (this) {
+        is Outcome.Success -> {
+            onSuccess(value); this
+        }
 
-    is Outcome.Failure -> {
-        onFailure(error); this
+        is Outcome.Failure -> {
+            onFailure(error); this
+        }
+    }
+}
+
+/**
+ * Converts an [Outcome] into a single value of type [Result] by handling both branches.
+ *
+ * This is the “_unwrap / fold_” operation: it **closes** the `Outcome` and produces a value
+ * that your calling code can work with directly.
+ *
+ * ### Example
+ * ```kotlin
+ * sealed interface AuthError { object Network : AuthError; object Invalid : AuthError }
+ *
+ * val message: String = authenticateUser()
+ *   .unwrap(
+ *     onFailure = { error ->
+ *       when (error) {
+ *         AuthError.Network -> "Check your connection"
+ *         AuthError.Invalid -> "Credentials are wrong"
+ *       }
+ *     },
+ *     onSuccess = { token -> "Logged in with: $token" }
+ *   )
+ *
+ * println(message)
+ * ```
+ *
+ * @param onFailure mapper called if this is [Outcome.Failure].
+ * @param onSuccess mapper called if this is [Outcome.Success].
+ * @return whatever [onFailure] or [onSuccess] returns.
+ */
+public inline fun <Error, Value, Result> Outcome<Error, Value>.unwrap(
+    onFailure: (Error) -> Result,
+    onSuccess: (Value) -> Result,
+): Result {
+    contract {
+        callsInPlace(onFailure, InvocationKind.AT_MOST_ONCE)
+        callsInPlace(onSuccess, InvocationKind.AT_MOST_ONCE)
+    }
+    return when (this) {
+        is Outcome.Success -> onSuccess(value)
+        is Outcome.Failure -> onFailure(error)
     }
 }
 
@@ -137,8 +201,9 @@ public inline fun <Error, Value> Outcome<Error, Value>.fold(
  */
 public inline fun <Error, Value> Outcome<Error, Value>.onSuccess(
     action: (Value) -> Unit,
-): Outcome<Error, Value> = apply {
-    if (this is Outcome.Success) action(value)
+): Outcome<Error, Value> {
+    contract { callsInPlace(action, InvocationKind.AT_MOST_ONCE) }
+    return apply { if (this is Outcome.Success) action(value) }
 }
 
 /**
@@ -151,8 +216,9 @@ public inline fun <Error, Value> Outcome<Error, Value>.onSuccess(
  */
 public inline fun <Error, Value> Outcome<Error, Value>.onFailure(
     action: (Error) -> Unit,
-): Outcome<Error, Value> = apply {
-    if (this is Outcome.Failure) action(error)
+): Outcome<Error, Value> {
+    contract { callsInPlace(action, InvocationKind.AT_MOST_ONCE) }
+    return apply { if (this is Outcome.Failure) action(error) }
 }
 
 // ─── Transformation ─────────────────────────────────────────────────────────
@@ -168,9 +234,12 @@ public inline fun <Error, Value> Outcome<Error, Value>.onFailure(
  */
 public inline fun <Error, Value, NewValue> Outcome<Error, Value>.mapSuccess(
     transform: (Value) -> NewValue,
-): Outcome<Error, NewValue> = when (this) {
-    is Outcome.Success -> Outcome.success(transform(value))
-    is Outcome.Failure -> this
+): Outcome<Error, NewValue> {
+    contract { callsInPlace(transform, InvocationKind.AT_MOST_ONCE) }
+    return when (this) {
+        is Outcome.Success -> Outcome.success(transform(value))
+        is Outcome.Failure -> this
+    }
 }
 
 /**
@@ -182,11 +251,81 @@ public inline fun <Error, Value, NewValue> Outcome<Error, Value>.mapSuccess(
  * println(mapped) // Failure(error=Error code: 404)
  * ```
  */
-public inline fun <Error, Value, NewError> Outcome<Error, Value>.mapError(
+public inline fun <Error, Value, NewError> Outcome<Error, Value>.mapFailure(
     transform: (Error) -> NewError,
-): Outcome<NewError, Value> = when (this) {
-    is Outcome.Success -> this
-    is Outcome.Failure -> Outcome.failure(transform(error))
+): Outcome<NewError, Value> {
+    contract { callsInPlace(transform, InvocationKind.AT_MOST_ONCE) }
+    return when (this) {
+        is Outcome.Success -> this
+        is Outcome.Failure -> Outcome.failure(transform(error))
+    }
+}
+
+/**
+ * Runs [fa] and [fb] in parallel and zips their results:
+ *   • If both succeed, returns Success(transform(a, b))
+ *   • If one fails, returns that Failure
+ *   • If both fail, combines their errors via [combineError] into a single Failure
+ *
+ * @param ctx         coroutine context for launching the two parallel tasks
+ * @param fa          first suspend producer of Outcome<Error, A>
+ * @param fb          second suspend producer of Outcome<Error, B>
+ * @param combineError how to merge two Error values when both fail
+ * @param transform   how to combine A and B when both succeed
+ *
+ * @return Outcome<Error, R>
+ *
+ * ```
+ * // Example:
+ * sealed interface AppError {
+ *   object FetchAError : AppError
+ *   object FetchBError : AppError
+ *   data class Combined(val errors: List<AppError>) : AppError
+ * }
+ *
+ * suspend fun fetchA(): Outcome<AppError, Int> = Outcome.success(1)
+ * suspend fun fetchB(): Outcome<AppError, String> = Outcome.failure(AppError.FetchBError)
+ *
+ * val result = zipParallelAccumulate(
+ *   a = { fetchA() },
+ *   b = { fetchB() },
+ *   combineError = { e1, e2 -> AppError.Combined(listOf(e1, e2)) }
+ * ) { a, b ->
+ *   "Got $a and $b"
+ * }
+ *
+ * // result == Outcome.Failure(AppError.FetchBError)
+ * ```
+ */
+public suspend inline fun <Error, A, B, R> zipParallelAccumulate(
+    ctx: CoroutineContext = EmptyCoroutineContext,
+    noinline fa: suspend () -> Outcome<Error, A>,
+    noinline fb: suspend () -> Outcome<Error, B>,
+    crossinline combineError: (Error, Error) -> Error,
+    crossinline transform: (A, B) -> R,
+): Outcome<Error, R> {
+    contract {
+        callsInPlace(combineError, InvocationKind.AT_MOST_ONCE)
+        callsInPlace(transform, InvocationKind.AT_MOST_ONCE)
+    }
+    return coroutineScope {
+        val da = async(ctx) { fa() }
+        val db = async(ctx) { fb() }
+        val oa = da.await()
+        val ob = db.await()
+
+        when {
+            oa is Outcome.Success && ob is Outcome.Success ->
+                Outcome.success(transform(oa.value, ob.value))
+
+            oa is Outcome.Failure && ob is Outcome.Failure ->
+                Outcome.failure(combineError(oa.error, ob.error))
+
+            oa is Outcome.Failure -> oa
+            ob is Outcome.Failure -> ob
+            else -> error("unreachable")
+        }
+    }
 }
 
 // ─── Exception handling ─────────────────────────────────────────────────────
@@ -211,10 +350,13 @@ public inline fun <Error, Value, NewError> Outcome<Error, Value>.mapError(
  */
 public inline fun <Value> outcomeCatching(
     block: () -> Value,
-): Outcome<Throwable, Value> = try {
-    Outcome.success(block())
-} catch (t: Throwable) {
-    Outcome.failure(t)
+): Outcome<Throwable, Value> {
+    contract { callsInPlace(block, InvocationKind.AT_MOST_ONCE) }
+    return try {
+        Outcome.success(block())
+    } catch (t: Throwable) {
+        Outcome.failure(t)
+    }
 }
 
 /**
@@ -242,12 +384,18 @@ public inline fun <Value> outcomeCatching(
 public inline fun <Error, Value> outcomeCatching(
     mapError: (Throwable) -> Error,
     block: () -> Value,
-): Outcome<Error, Value> = try {
-    Outcome.success(block())
-} catch (c: CancellationException) {
-    throw c
-} catch (t: Throwable) {
-    Outcome.failure(mapError(t))
+): Outcome<Error, Value> {
+    contract {
+        callsInPlace(block, InvocationKind.AT_MOST_ONCE)
+        callsInPlace(mapError, InvocationKind.AT_MOST_ONCE)
+    }
+    return try {
+        Outcome.success(block())
+    } catch (c: CancellationException) {
+        throw c
+    } catch (t: Throwable) {
+        Outcome.failure(mapError(t))
+    }
 }
 
 /**
@@ -269,14 +417,17 @@ public inline fun <Error, Value> outcomeCatching(
  */
 public suspend inline fun <Value> outcomeSuspendCatching(
     block: suspend () -> Value,
-): Outcome<Throwable, Value> = try {
-    Outcome.success(block())
-} catch (t: TimeoutCancellationException) {
-    Outcome.failure(t)
-} catch (c: CancellationException) {
-    throw c
-} catch (t: Throwable) {
-    Outcome.failure(t)
+): Outcome<Throwable, Value> {
+    contract { callsInPlace(block, InvocationKind.AT_MOST_ONCE) }
+    return try {
+        Outcome.success(block())
+    } catch (t: TimeoutCancellationException) {
+        Outcome.failure(t)
+    } catch (c: CancellationException) {
+        throw c
+    } catch (t: Throwable) {
+        Outcome.failure(t)
+    }
 }
 
 /**
@@ -300,14 +451,20 @@ public suspend inline fun <Value> outcomeSuspendCatching(
 public suspend inline fun <Error, Value> outcomeSuspendCatching(
     crossinline mapError: (Throwable) -> Error,
     crossinline block: suspend () -> Value,
-): Outcome<Error, Value> = try {
-    Outcome.success(block())
-} catch (t: TimeoutCancellationException) {
-    Outcome.failure(mapError(t))
-} catch (c: CancellationException) {
-    throw c
-} catch (t: Throwable) {
-    Outcome.failure(mapError(t))
+): Outcome<Error, Value> {
+    contract {
+        callsInPlace(block, InvocationKind.AT_MOST_ONCE)
+        callsInPlace(mapError, InvocationKind.AT_MOST_ONCE)
+    }
+    return try {
+        Outcome.success(block())
+    } catch (t: TimeoutCancellationException) {
+        Outcome.failure(mapError(t))
+    } catch (c: CancellationException) {
+        throw c
+    } catch (t: Throwable) {
+        Outcome.failure(mapError(t))
+    }
 }
 
 /**
@@ -327,15 +484,18 @@ public suspend inline fun <Error, Value> outcomeSuspendCatching(
 public suspend inline fun <Value> outcomeSuspendCatchingOn(
     dispatcher: CoroutineDispatcher,
     crossinline block: suspend () -> Value,
-): Outcome<Throwable, Value> = try {
-    val result = withContext(dispatcher) { block() }
-    Outcome.success(result)
-} catch (t: TimeoutCancellationException) {
-    Outcome.failure(t)
-} catch (c: CancellationException) {
-    throw c
-} catch (t: Throwable) {
-    Outcome.failure(t)
+): Outcome<Throwable, Value> {
+    contract { callsInPlace(block, InvocationKind.AT_MOST_ONCE) }
+    return try {
+        val r = withContext(dispatcher) { block() }
+        Outcome.success(r)
+    } catch (t: TimeoutCancellationException) {
+        Outcome.failure(t)
+    } catch (c: CancellationException) {
+        throw c
+    } catch (t: Throwable) {
+        Outcome.failure(t)
+    }
 }
 
 /**
@@ -360,13 +520,19 @@ public suspend inline fun <Error, Value> outcomeSuspendCatchingOn(
     dispatcher: CoroutineDispatcher,
     crossinline mapError: (Throwable) -> Error,
     crossinline block: suspend () -> Value,
-): Outcome<Error, Value> = try {
-    val result = withContext(dispatcher) { block() }
-    Outcome.success(result)
-} catch (t: TimeoutCancellationException) {
-    Outcome.failure(mapError(t))
-} catch (c: CancellationException) {
-    throw c
-} catch (t: Throwable) {
-    Outcome.failure(mapError(t))
+): Outcome<Error, Value> {
+    contract {
+        callsInPlace(block, InvocationKind.AT_MOST_ONCE)
+        callsInPlace(mapError, InvocationKind.AT_MOST_ONCE)
+    }
+    return try {
+        val r = withContext(dispatcher) { block() }
+        Outcome.success(r)
+    } catch (t: TimeoutCancellationException) {
+        Outcome.failure(mapError(t))
+    } catch (c: CancellationException) {
+        throw c
+    } catch (t: Throwable) {
+        Outcome.failure(mapError(t))
+    }
 }
