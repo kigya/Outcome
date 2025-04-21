@@ -82,7 +82,7 @@ publishing {
                 username = findProperty("gpr.user") as String?
                     ?: System.getenv("GITHUB_ACTOR")
                 password = findProperty("gpr.key") as String?
-                    ?: System.getenv("GPR_TOKEN")
+                    ?: System.getenv("GITHUB_TOKEN")
             }
         }
         // mavenLocal()
