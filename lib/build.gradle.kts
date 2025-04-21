@@ -30,6 +30,19 @@ kotlin {
         }
     }
 
+    val xcf = XCFramework()
+    listOf(
+        iosX64(),
+        iosArm64(),
+        iosSimulatorArm64()
+    ).forEach {
+        it.binaries.framework {
+            baseName = "lib"
+            xcf.add(this)
+            isStatic = true
+        }
+    }
+
     sourceSets {
         commonMain.dependencies {
             implementation(libs.coroutines.core)
@@ -55,11 +68,17 @@ android {
 version = "0.1.3"
 
 publishing {
-    publications {
-        withType<MavenPublication>().configureEach {
-            groupId = "dev.kigya.outcome"
-            artifactId = "core"
-            version = "0.1.3"
+    publications.withType<MavenPublication>().configureEach {
+        groupId = "dev.kigya.outcome"
+        version = project.version.toString()
+        artifactId = when (name) {
+            "kotlinMultiplatform"    -> "core"
+            "desktop"                -> "core-desktop"
+            "androidRelease"         -> "core-android"
+            "iosX64"                 -> "core-iosx64"
+            "iosArm64"               -> "core-iosarm64"
+            "iosSimulatorArm64"      -> "core-iossimulatorarm64"
+            else                     -> "core-${name}"
         }
     }
 
@@ -75,12 +94,6 @@ publishing {
             }
         }
         // mavenLocal()
-    }
-}
-
-tasks.withType<PublishToMavenRepository>().configureEach {
-    onlyIf {
-        publication.name == "kotlinMultiplatform"
     }
 }
 
