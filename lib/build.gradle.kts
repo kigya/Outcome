@@ -89,6 +89,12 @@ publishing {
     }
 }
 
+tasks.withType<PublishToMavenRepository>().configureEach {
+    onlyIf {
+        publication.name == "kotlinMultiplatform"
+    }
+}
+
 tasks.register<Delete>("cleanMavenLocal") {
     val groupIdPath = "dev/kigya"
     val artifactId = "outcome"
