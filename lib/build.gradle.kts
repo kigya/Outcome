@@ -65,6 +65,8 @@ android {
     }
 }
 
+version = "0.1.3"
+
 publishing {
     publications {
         withType<MavenPublication>().configureEach {
@@ -86,6 +88,12 @@ publishing {
             }
         }
         // mavenLocal()
+    }
+}
+
+tasks.withType<PublishToMavenRepository>().configureEach {
+    onlyIf {
+        publication.name == "kotlinMultiplatform"
     }
 }
 
