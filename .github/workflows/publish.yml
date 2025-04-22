@@ -2,19 +2,21 @@ name: Publish to GitHub Packages
 
 on:
   push:
-    branches: [master]
+    branches: [ master ]
 
 permissions:
   contents: read
   packages: write
 
 jobs:
-  build-and-publish:
-    runs-on: macos-latest
+  publish:
+    strategy:
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
 
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
       - name: Setup Java
         uses: actions/setup-java@v3
@@ -23,7 +25,24 @@ jobs:
           java-version: 17
           cache: gradle
 
-      - name: Build & Publish
-        run: ./gradlew publishAllPublicationsToGitHubPackagesRepository
+      - name: Publish Kotlin Multiplatform metadata
+        run: ./gradlew publishKotlinMultiplatformPublicationToGitHubPackagesRepository
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Publish Linux X64
+        if: matrix.os == 'ubuntu-latest'
+        run: ./gradlew publishLinuxX64PublicationToGitHubPackagesRepository
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Publish macOS and iOS targets
+        if: matrix.os == 'macos-latest'
+        run: |
+          ./gradlew \
+             publishMacosX64PublicationToGitHubPackagesRepository \
+             publishIosX64PublicationToGitHubPackagesRepository \
+             publishIosArm64PublicationToGitHubPackagesRepository \
+             publishIosSimulatorArm64PublicationToGitHubPackagesRepository
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
