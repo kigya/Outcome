@@ -48,8 +48,12 @@ version = "0.1.3"
 
 publishing {
     publications.withType<MavenPublication>().configureEach {
-        if (name == "kotlinMultiplatform") {
-            artifactId = "core"
+        artifactId = when (name) {
+            "kotlinMultiplatform" -> "core"                                        // metadata+common
+            "iosArm64Publication" -> "core-iosarm64"
+            "iosX64Publication" -> "core-iosx64"
+            "iosSimulatorArm64Publication" -> "core-iossimulatorarm64"
+            else -> name.removeSuffix("Publication")
         }
     }
 
@@ -66,10 +70,6 @@ publishing {
         }
         mavenLocal()
     }
-}
-
-tasks.withType<PublishToMavenRepository>().configureEach {
-    onlyIf { publication.name == "kotlinMultiplatform" }
 }
 
 tasks.register<Delete>("cleanMavenLocal") {
