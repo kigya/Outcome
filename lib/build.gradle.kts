@@ -43,16 +43,14 @@ android {
     }
 }
 
+group = "dev.kigya.outcome"
 version = "0.1.3"
 
 publishing {
-    publications {
-        withType<MavenPublication>()
-            .named("kotlinMultiplatform") {
-                groupId = "dev.kigya.outcome"
-                artifactId = "core"
-                version = project.version.toString()
-            }
+    publications.withType<MavenPublication>().configureEach {
+        if (name == "kotlinMultiplatform") {
+            artifactId = "core"
+        }
     }
 
     repositories {
