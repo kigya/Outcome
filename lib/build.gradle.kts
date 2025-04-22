@@ -44,7 +44,7 @@ android {
 }
 
 group = "dev.kigya.outcome"
-version = "0.1.3"
+version = "0.1.4"
 
 publishing {
     publications.withType<MavenPublication>().configureEach {
@@ -55,7 +55,7 @@ publishing {
             "iosArm64" -> "core-iosarm64"
             "iosX64" -> "core-iosx64"
             "iosSimulatorArm64" -> "core-iossimulatorarm64"
-            else -> name  // если будут другие таргеты
+            else -> name
         }
     }
 
