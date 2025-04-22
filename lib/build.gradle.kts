@@ -48,6 +48,8 @@ version = "0.1.3"
 
 publishing {
     publications.withType<MavenPublication>().configureEach {
+        groupId = project.group.toString()
+        version = project.version.toString()
         artifactId = when (name) {
             "kotlinMultiplatform" -> "core"
             "iosArm64" -> "core-iosarm64"
