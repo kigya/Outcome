@@ -2,7 +2,7 @@ name: Publish to GitHub Packages
 
 on:
   push:
-    branches: [master]
+    branches: [ master ]
 
 permissions:
   contents: read
@@ -23,7 +23,6 @@ jobs:
           cache: gradle
 
       - name: Publish all publications
-        run: ./gradlew publishAllPublicationsToGitHubPackagesRepository \
-          -Pkotlin.native.ignoreDisabledTargets=true
+        run: ./gradlew publishAllPublicationsToGitHubPackagesRepository
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
