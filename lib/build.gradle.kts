@@ -1,5 +1,4 @@
 import org.jetbrains.kotlin.gradle.dsl.JvmTarget
-import org.jetbrains.kotlin.gradle.plugin.mpp.apple.XCFramework
 
 plugins {
     alias(libs.plugins.kotlinMultiplatform)
@@ -20,28 +19,9 @@ kotlin {
         }
     }
 
-    jvm("desktop") {
-        compilations.all {
-            compileTaskProvider.configure {
-                compilerOptions {
-                    jvmTarget.set(JvmTarget.JVM_1_8)
-                }
-            }
-        }
-    }
-
-    val xcf = XCFramework()
-    listOf(
-        iosX64(),
-        iosArm64(),
-        iosSimulatorArm64()
-    ).forEach {
-        it.binaries.framework {
-            baseName = "lib"
-            xcf.add(this)
-            isStatic = true
-        }
-    }
+    iosX64()
+    iosArm64()
+    iosSimulatorArm64()
 
     sourceSets {
         commonMain.dependencies {
@@ -54,11 +34,9 @@ kotlin {
 }
 
 android {
-    namespace = "dev.kigya.outcome"
     compileSdk = 35
-    defaultConfig {
-        minSdk = 24
-    }
+    namespace = "dev.kigya.outcome"
+    defaultConfig { minSdk = 24 }
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_1_8
         targetCompatibility = JavaVersion.VERSION_1_8
@@ -68,18 +46,13 @@ android {
 version = "0.1.3"
 
 publishing {
-    publications.withType<MavenPublication>().configureEach {
-        groupId = "dev.kigya.outcome"
-        version = project.version.toString()
-        artifactId = when (name) {
-            "kotlinMultiplatform"    -> "core"
-            "desktop"                -> "core-desktop"
-            "androidRelease"         -> "core-android"
-            "iosX64"                 -> "core-iosx64"
-            "iosArm64"               -> "core-iosarm64"
-            "iosSimulatorArm64"      -> "core-iossimulatorarm64"
-            else                     -> "core-${name}"
-        }
+    publications {
+        withType<MavenPublication>()
+            .named("kotlinMultiplatform") {
+                groupId = "dev.kigya.outcome"
+                artifactId = "core"
+                version = project.version.toString()
+            }
     }
 
     repositories {
@@ -93,8 +66,12 @@ publishing {
                     ?: System.getenv("GITHUB_TOKEN")
             }
         }
-        // mavenLocal()
+        mavenLocal()
     }
+}
+
+tasks.withType<PublishToMavenRepository>().configureEach {
+    onlyIf { publication.name == "kotlinMultiplatform" }
 }
 
 tasks.register<Delete>("cleanMavenLocal") {
