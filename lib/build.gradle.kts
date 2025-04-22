@@ -49,11 +49,11 @@ version = "0.1.3"
 publishing {
     publications.withType<MavenPublication>().configureEach {
         artifactId = when (name) {
-            "kotlinMultiplatform" -> "core"                                        // metadata+common
-            "iosArm64Publication" -> "core-iosarm64"
-            "iosX64Publication" -> "core-iosx64"
-            "iosSimulatorArm64Publication" -> "core-iossimulatorarm64"
-            else -> name.removeSuffix("Publication")
+            "kotlinMultiplatform" -> "core"
+            "iosArm64" -> "core-iosarm64"
+            "iosX64" -> "core-iosx64"
+            "iosSimulatorArm64" -> "core-iossimulatorarm64"
+            else -> name  // если будут другие таргеты
         }
     }
 
