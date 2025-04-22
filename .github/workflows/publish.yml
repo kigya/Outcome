@@ -30,19 +30,12 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Publish Linux X64
-        if: matrix.os == 'ubuntu-latest'
-        run: ./gradlew publishLinuxX64PublicationToGitHubPackagesRepository
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Publish macOS and iOS targets
+      - name: Publish iOS targets
         if: matrix.os == 'macos-latest'
         run: |
           ./gradlew \
-             publishMacosX64PublicationToGitHubPackagesRepository \
-             publishIosX64PublicationToGitHubPackagesRepository \
-             publishIosArm64PublicationToGitHubPackagesRepository \
-             publishIosSimulatorArm64PublicationToGitHubPackagesRepository
+            publishIosX64PublicationToGitHubPackagesRepository \
+            publishIosArm64PublicationToGitHubPackagesRepository \
+            publishIosSimulatorArm64PublicationToGitHubPackagesRepository
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
