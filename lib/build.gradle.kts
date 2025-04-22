@@ -1,22 +1,17 @@
-import org.jetbrains.kotlin.gradle.dsl.JvmTarget
-
 plugins {
-    alias(libs.plugins.kotlinMultiplatform)
     alias(libs.plugins.androidLibrary)
+    alias(libs.plugins.kotlinMultiplatform)
     `maven-publish`
 }
+
+group = "dev.kigya.outcome"
+version = "0.1.5"
 
 kotlin {
     explicitApi()
 
     androidTarget {
-        compilations.all {
-            compileTaskProvider.configure {
-                compilerOptions {
-                    jvmTarget.set(JvmTarget.JVM_1_8)
-                }
-            }
-        }
+        publishLibraryVariants("release")
     }
 
     iosX64()
@@ -43,20 +38,14 @@ android {
     }
 }
 
-group = "dev.kigya.outcome"
-version = "0.1.4"
-
 publishing {
-    publications.withType<MavenPublication>().configureEach {
-        groupId = project.group.toString()
-        version = project.version.toString()
-        artifactId = when (name) {
-            "kotlinMultiplatform" -> "core"
-            "iosArm64" -> "core-iosarm64"
-            "iosX64" -> "core-iosx64"
-            "iosSimulatorArm64" -> "core-iossimulatorarm64"
-            else -> name
-        }
+    publications {
+        withType<MavenPublication>()
+            .named("kotlinMultiplatform") {
+                groupId = "dev.kigya.outcome"
+                artifactId = "core"
+                version = project.version.toString()
+            }
     }
 
     repositories {
