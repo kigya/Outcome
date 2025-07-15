@@ -5,7 +5,7 @@ plugins {
 }
 
 group = "dev.kigya.outcome"
-version = "0.1.5"
+version = "0.2.0"
 
 kotlin {
     explicitApi()
@@ -17,6 +17,12 @@ kotlin {
     iosX64()
     iosArm64()
     iosSimulatorArm64()
+
+    jvm("desktop") {
+        compilations.all {
+            kotlinOptions.jvmTarget = "17"
+        }
+    }
 
     sourceSets {
         commonMain.dependencies {
