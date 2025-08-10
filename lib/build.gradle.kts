@@ -1,3 +1,7 @@
+@file:OptIn(ExperimentalWasmDsl::class)
+
+import org.jetbrains.kotlin.gradle.ExperimentalWasmDsl
+
 plugins {
     alias(libs.plugins.androidLibrary)
     alias(libs.plugins.kotlinMultiplatform)
@@ -22,6 +26,18 @@ kotlin {
         compilations.all {
             kotlinOptions.jvmTarget = "17"
         }
+    }
+
+    js(IR) {
+        browser()
+        nodejs()
+        binaries.library()
+    }
+
+    wasmJs {
+        browser()
+        nodejs()
+        binaries.library()
     }
 
     sourceSets {
